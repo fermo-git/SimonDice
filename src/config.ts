@@ -1,5 +1,5 @@
 /** ⚠️ Pega aquí la URL de tu Payment Link de Stripe (modo test, pago único, mínimo $10 MXN). */
-export const PRO_PAYMENT_LINK = 'https://buy.stripe.com/test_REEMPLAZAR';
+export const PRO_PAYMENT_LINK = 'https://buy.stripe.com/test_7sYfZb6IU3sm4s89zt4Ja07';
 export const PRO_PRICE_LABEL = '$10 MXN';
 
 export const C = {

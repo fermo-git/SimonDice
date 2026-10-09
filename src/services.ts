@@ -3,11 +3,21 @@ import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 
-import { PRO_PAYMENT_LINK } from './config';
+import type { Mode } from './game';
 
 // ───────── Progreso guardado en el teléfono ─────────
-export type Saved = { pro: boolean; expert: boolean; best: number; last: number | null; daily: boolean };
-const DEFAULTS: Saved = { pro: false, expert: false, best: 0, last: null, daily: false };
+export type Saved = {
+  name: string;
+  playerId: string; // identifica a este jugador en la nube ('' = el de antes de existir esta función). Cada apodo nuevo = jugador nuevo
+  mode: Mode; // dificultad elegida: normal | hard | ultra
+  ultraUnlocked: boolean; // ya logró los puntos en Difícil para abrir el modo Ultra
+  pack: boolean; // compró el Pack de retos extra
+  sounds: boolean; // compró el Pack de sonidos
+  sound: string; // sonido de acierto elegido (solo cuenta si compró el pack; si no, 'ding')
+  best: number;
+  last: number | null;
+};
+const DEFAULTS: Saved = { name: '', playerId: '', mode: 'normal', ultraUnlocked: false, pack: false, sounds: false, sound: 'ding', best: 0, last: null };
 const KEY = 'simon-sensores:v1';
 
 export function useSaved() {
@@ -17,7 +27,15 @@ export function useSaved() {
   useEffect(() => {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
-        ref.current = { ...DEFAULTS, ...(raw ? JSON.parse(raw) : {}) };
+        const stored = raw ? JSON.parse(raw) : {};
+        // Migración: antes la dificultad era un interruptor `expert` (y existía `pro`/`daily`).
+        if (stored.mode === undefined && typeof stored.expert === 'boolean') {
+          stored.mode = stored.expert ? 'hard' : 'normal';
+        }
+        delete stored.expert;
+        delete stored.pro;
+        delete stored.daily;
+        ref.current = { ...DEFAULTS, ...stored };
       })
       .catch(() => undefined)
       .finally(() => setSaved(ref.current));
@@ -116,15 +134,20 @@ export async function setDailyReminder(on: boolean) {
 
 // ───────── Compra (Stripe, modo test) ─────────
 /**
- * Abre el Payment Link y, al cerrar el navegador, pregunta si se completó el pago.
+ * Abre un Payment Link y, al cerrar el navegador, pregunta si se completó el pago.
  * Es una simulación: no hay servidor que verifique el cobro (las compras son de prueba).
+ * `what` completa la frase "desbloqueamos …" del aviso.
  */
-export async function buyPro(): Promise<boolean> {
-  await WebBrowser.openBrowserAsync(PRO_PAYMENT_LINK);
+export async function buyProduct(link: string, what: string): Promise<boolean> {
+  if (link.includes('REEMPLAZAR')) {
+    Alert.alert('Falta el link de Stripe', 'Pega la URL del Payment Link de este producto en el código (src/config.ts o src/products.ts).');
+    return false;
+  }
+  await WebBrowser.openBrowserAsync(link);
   return new Promise((resolve) => {
     Alert.alert(
       '¿Completaste el pago?',
-      'Si pagaste con la tarjeta de prueba, desbloqueamos el modo experto.',
+      `Si pagaste con la tarjeta de prueba, desbloqueamos ${what}.`,
       [
         { text: 'Todavía no', style: 'cancel', onPress: () => resolve(false) },
         { text: 'Sí, ya pagué', onPress: () => resolve(true) },
@@ -133,3 +156,4 @@ export async function buyPro(): Promise<boolean> {
     );
   });
 }
+
